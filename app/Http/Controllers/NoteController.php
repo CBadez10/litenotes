@@ -1,0 +1,133 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Note;
+use Illuminate\Support\Str;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+
+class NoteController extends Controller
+{
+    /**
+     * Display a listing of the resource.
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function index()
+    {
+        // Get notes of a user, paginate to 5 (All 3 examples work the same)
+        // $notes = Auth::user()->notes()->latest('updated_at')->paginate(5);
+        // $notes = Note::where('user_id', Auth::id())->latest('updated_at')->paginate(5);
+        $notes = Note::whereBelongsTo(Auth::user())->latest('updated_at')->paginate(5);
+        return view('notes.index')->with('notes', $notes);
+    }
+
+    /**
+     * Show the form for creating a new resource.
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function create()
+    {
+        return view('notes.create');
+    }
+
+    /**
+     * Store a newly created resource in storage.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\Response
+     */
+    public function store(Request $request)
+    {
+        // Validate fields 
+        $request->validate([
+            'title' => 'required|max:120',
+            'text' => 'required'
+        ]);
+
+        // Save a note in the DB (since user_id is foreign key, we can exclude creating and have it manually populate from user table)
+        Auth::user()->notes()->create([
+            'uuid' => Str::uuid(),
+            'title' => $request->title,
+            'text' => $request->text
+        ]);
+
+        return to_route('notes.index')->with('success', 'Note created successfully');
+    }
+
+    /**
+     * Display the specified resource.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function show(Note $note)
+    {
+        if(!$note->user->is(Auth::user())) {
+            return abort(403);
+        }
+
+        return view('notes.show')->with('note', $note);
+    }
+
+    /**
+     * Show the form for editing the specified resource.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function edit(Note $note)
+    {
+        if(!$note->user->is(Auth::user())) {
+            return abort(403);
+        }
+
+        return view('notes.edit')->with('note', $note);
+    }
+
+    /**
+     * Update the specified resource in storage.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function update(Request $request, Note $note)
+    {
+        if(!$note->user->is(Auth::user())) {
+            return abort(403);
+        }
+
+        // Validate fields 
+        $request->validate([
+            'title' => 'required|max:120',
+            'text' => 'required'
+        ]);
+
+        // Update in db
+        $note->update([
+            'title' => $request->title,
+            'text' => $request->text
+        ]);
+
+        return to_route('notes.show', $note)->with('success', 'Note updated successfully');
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function destroy(Note $note)
+    {
+        if(!$note->user->is(Auth::user())) {
+            return abort(403);
+        }
+
+        $note->delete();
+        return to_route('notes.index')->with('success', 'Note moved to trash');
+    }
+}
